@@ -1,0 +1,375 @@
+from flask import Flask, request, render_template, session, redirect
+import bs4
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import re
+import datetime
+from datetime import datetime
+import numpy as np
+
+
+app = Flask(__name__)
+
+
+
+@app.route('/', methods=("POST", "GET"))
+def html_table():
+
+    
+
+    supermaster=pd.DataFrame()
+
+    Botswana='https://www.africanews.com/country/botswana/' 
+    Burundi='https://www.africanews.com/country/burundi/'
+    Cameroon='https://www.africanews.com/country/cameroon/'
+    Congo='https://www.africanews.com/country/republic-of-the-congo/'
+    Ethiopia='https://www.africanews.com/country/ethiopia/'
+    Kenya='https://www.africanews.com/country/kenya/'
+    Mali='https://www.africanews.com/country/mali/'
+    Mauritania='https://www.africanews.com/country/mauritania/'
+    Rwanda='https://www.africanews.com/country/rwanda/'
+    Senegal='https://www.africanews.com/country/senegal/'
+    Sierra_Leone='https://www.africanews.com/country/sierra-leone/'
+    Tanzania='https://www.africanews.com/country/tanzania/'
+    Tunisia='https://www.africanews.com/country/tunisia/'
+    Uganda='https://www.africanews.com/country/uganda/'
+    Zambia='https://www.africanews.com/country/zambia/'
+
+    
+    
+
+    def africanews_news_scrapping(i,j):
+        master_Data=pd.DataFrame()
+        url=i
+
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        urllist=soup.find(class_="layout theme-block__spacer")
+        newslink=[]
+        headlines=[]
+        for a in urllist.find_all('a', href=True):
+                newslink.append(a['href'])
+                headlines.append(a.contents[0])
+                df=pd.DataFrame({'Newslink':newslink,'Headlines':headlines})
+
+                df["Dates"]=df.Newslink.str.extract('(\d{4}/\d{2}/\d{2})') 
+                df.dropna(subset=['Dates'], inplace=True)
+                df.drop_duplicates()
+                df['Headlines'].replace('\n', np.nan, inplace=True)
+                df.dropna(subset=['Headlines'], inplace=True)
+                df=df.drop_duplicates(subset=['Newslink'])
+                link=[]
+                for i in df.Newslink:
+                    link.append("https://www.africanews.com"+i)
+                df["Link"]=link
+                df["Country"]=j
+                df["Channel"]='Africa News'
+        df=df.drop('Newslink',1)
+        df['Headlines']=df.Headlines.str.strip()
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        master_Data=master_Data.append(df)
+        return(master_Data)
+
+
+    def cnn_news_scrapping():
+        
+
+        URL = "https://edition.cnn.com/africa"
+        page = requests.get(URL)
+
+        soup = BeautifulSoup(page.content, "html.parser")
+
+        urllist=soup.find(class_="pg-no-rail pg-wrapper")
+
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Newslink':link,'Headlines':headline})
+
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+
+        link=[]
+        for i in df.Newslink:
+            link.append("https://edition.cnn.com"+i)
+        df["Link"]=link
+
+        df["Dates"]=df.Newslink.str.extract('(\d{4}/\d{2}/\d{2})')
+
+        df['Dates'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Dates'], inplace=True)
+        df.drop(df.columns[[0]], axis = 1, inplace = True)
+        df["Channel"]="CNN"
+
+        ############ CHANGE THE DIRECTORY ###########
+        africa_countires_list=pd.read_excel('africa.xlsx')
+        mylist=africa_countires_list.Countries.to_list()
+        #mylist=[africa_countires_list.Countries]
+
+        df['Country']=df['Headlines'].str.extract(f"({'|'.join(mylist)})")
+        
+        return(df)
+
+    def brazil_report_news_scrapping():
+
+        URL='https://brazilian.report'
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="col-lg-6 order-lg-2 col-main home-center-content")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            link.append(a.get("href"))
+            headline.append(a.text)
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d{4}/\d{2}/\d{2})')
+        df.dropna(subset=['Dates'], inplace=True)
+        df["Channel"]="The Brazilian report"
+        df['Country']="Brazil"
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        
+        return(df)
+
+    def sweden_9news_news_scrapping():
+        URL = "https://www.9news.com.au/sweden"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+
+
+        urllist=soup.find(class_="feed__stories")
+        link=[]
+        headline=[]
+        timeline=[]
+        
+        for a in urllist.find_all('a', href=True):
+        
+            link.append(a.get("href"))
+            headline.append(a.text)
+            
+        for i in urllist.find_all('time'):
+            timeline.append(i.text)
+            
+        f=pd.DataFrame({'Link':link,'Headlines':headline})
+
+        f['Headlines'].replace('', np.nan, inplace=True)
+        f.dropna(subset=['Headlines'], inplace=True)
+        f.drop_duplicates(subset=['Headlines'], inplace=True)
+        f["Channel"]="9 News"
+        f['Country']="Sweden"
+        f=f[f.Link.str.contains('//')]
+        f.reset_index(drop=True, inplace=True)
+
+        time_df=pd.DataFrame({'Timeline':timeline})
+        f['Dates']=pd.to_datetime(time_df['Timeline']).dt.date
+        f
+        f=f[['Headlines','Link','Dates','Channel','Country']]
+
+        return(f)
+
+    
+    def aljazeera_qatar_news_scrapping():
+    
+        URL = "https://www.aljazeera.com/where/qatar/"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="archipleago")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            #print(a.get("href"))    
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d*/\d*/\d*/\d*/\d*)')
+        df["Dates"]=df['Dates'].str[1:-1]#\d{4}-\d{2}-\d{2}   \d*\d*\d*\d*  \d*/\d*/\d*/\d*
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+        df.drop_duplicates(subset=['Headlines'], inplace=True)
+        df["Channel"]="Al-Jazeera"
+        df['Country']="Qatar"
+        urllink=[]
+        for i in df.Link:
+            urllink.append("https://www.aljazeera.com"+i)
+        df["Link"]=urllink
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        return(df)
+    
+
+    def aljazeera_egypt_news_scrapping():
+        URL = "https://www.aljazeera.com/where/egypt/"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="archipleago")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            #print(a.get("href"))    
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d*/\d*/\d*/\d*/\d*)')
+        df["Dates"]=df['Dates'].str[1:-1]#\d{4}-\d{2}-\d{2}   \d*\d*\d*\d*  \d*/\d*/\d*/\d*
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+        df.dropna(subset=['Dates'], inplace=True)
+        df.drop_duplicates(subset=['Headlines'], inplace=True)
+        df["Channel"]="Al-Jazeera"
+        df['Country']="Egypt"
+        urllink=[]
+        for i in df.Link:
+            urllink.append("https://www.aljazeera.com"+i)
+        df["Link"]=urllink
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        return(df)
+    
+    def aljazeera_uae_news_scrapping():
+    
+        URL = "https://www.aljazeera.com/where/united-arab-emirates/"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="archipleago")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            #print(a.get("href"))    
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d*/\d*/\d*/\d*/\d*)')
+        df["Dates"]=df['Dates'].str[1:-1]
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+        df.dropna(subset=['Dates'], inplace=True)
+        df.drop_duplicates(subset=['Headlines'], inplace=True)
+        df["Channel"]="Al-Jazeera"
+        df['Country']="UAE"
+        urllink=[]
+        for i in df.Link:
+            urllink.append("https://www.aljazeera.com"+i)
+        df["Link"]=urllink
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        return(df)
+
+
+    def aljazeera_kuwait_news_scrapping():
+    
+        URL = "https://www.aljazeera.com/where/kuwait/"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="archipleago")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            #print(a.get("href"))    
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d*/\d*/\d*/\d*/\d*)')
+        df["Dates"]=df['Dates'].str[1:-1]
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+        df.dropna(subset=['Dates'], inplace=True)
+        df.drop_duplicates(subset=['Headlines'], inplace=True)
+        df["Channel"]="Al-Jazeera"
+        df['Country']="Kuwait"
+        urllink=[]
+        for i in df.Link:
+            urllink.append("https://www.aljazeera.com"+i)
+        df["Link"]=urllink
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        return(df)
+
+    def aljazeera_saudi_news_scrapping():
+    
+        URL = "https://www.aljazeera.com/where/saudi-arabia/"
+        page = requests.get(URL)
+        soup = BeautifulSoup(page.content, "html.parser")
+        urllist=soup.find(class_="archipleago")
+        link=[]
+        headline=[]
+        for a in urllist.find_all('a', href=True):
+            #print(a.get("href"))    
+            link.append(a.get("href"))
+            headline.append(a.text)
+
+        df=pd.DataFrame({'Link':link,'Headlines':headline})
+        df["Dates"]=df.Link.str.extract('(\d*/\d*/\d*/\d*/\d*)')
+        df["Dates"]=df['Dates'].str[1:-1]
+        df['Headlines'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['Headlines'], inplace=True)
+        df.dropna(subset=['Dates'], inplace=True)
+        df.drop_duplicates(subset=['Headlines'], inplace=True)
+        df["Channel"]="Al-Jazeera"
+        df['Country']="Saudi Arabia"
+        urllink=[]
+        for i in df.Link:
+            urllink.append("https://www.aljazeera.com"+i)
+        df["Link"]=urllink
+        df=df[['Headlines','Link','Dates','Channel','Country']]
+        df.reset_index(drop=True, inplace=True)
+        return(df)
+    
+    supermaster=supermaster.append(africanews_news_scrapping(Botswana,'Botswana'))
+    supermaster=supermaster.append(africanews_news_scrapping(Burundi,'Burundi'))
+    supermaster=supermaster.append(africanews_news_scrapping(Cameroon,'Cameroon'))
+    supermaster=supermaster.append(africanews_news_scrapping(Congo,'Congo'))
+    supermaster=supermaster.append(africanews_news_scrapping(Ethiopia,'Ethiopia'))
+    supermaster=supermaster.append(africanews_news_scrapping(Kenya,'Kenya'))
+    supermaster=supermaster.append(africanews_news_scrapping(Mali,'Mali'))
+    supermaster=supermaster.append(africanews_news_scrapping(Mauritania,'Mauritania'))
+    supermaster=supermaster.append(africanews_news_scrapping(Rwanda,'Rwanda'))
+    supermaster=supermaster.append(africanews_news_scrapping(Senegal,'Senegal'))
+    supermaster=supermaster.append(africanews_news_scrapping(Sierra_Leone,'Sierra_Leone'))
+    supermaster=supermaster.append(africanews_news_scrapping(Tanzania,'Tanzania'))
+    supermaster=supermaster.append(africanews_news_scrapping(Tunisia,'Tunisia'))
+    supermaster=supermaster.append(africanews_news_scrapping(Uganda,'Uganda'))
+    supermaster=supermaster.append(africanews_news_scrapping(Zambia,'zambia'))
+    #supermaster['Headlines']=supermaster.Headlines.str.strip()
+
+
+
+
+    supermaster=supermaster.append(cnn_news_scrapping())
+    supermaster=supermaster.append(brazil_report_news_scrapping())
+    #supermaster=supermaster.append(sweden_9news_news_scrapping())
+    supermaster=supermaster.append(aljazeera_qatar_news_scrapping())
+    supermaster=supermaster.append(aljazeera_egypt_news_scrapping())
+    supermaster=supermaster.append(aljazeera_uae_news_scrapping())
+    supermaster=supermaster.append(aljazeera_kuwait_news_scrapping())
+    supermaster=supermaster.append(aljazeera_saudi_news_scrapping())
+    ############ CHANGE THE DIRECTORY ###########
+    
+    #supermaster['Link']="<a href='"+supermaster['Link']+"'>"+supermaster['Link']+"</a>"
+    
+    #supermaster.to_excel(r"\\172.22.0.57\rpa_prod\Group\IT\Global_News\Africa_news_.xlsx")
+    supermaster.to_excel("Africa_News.xlsx")
+    
+    supermaster.reset_index(inplace=True,drop=True)
+
+    #html = supermaster.to_html(buf='/Users/manikandan.t/Desktop/Africa/templates/index.html',escape=False, index=False)
+    #Add Myammar to the news
+
+
+    return render_template("index.html")
+
+
+if __name__ == '__main__':
+    app.run()
+
+
+
+    ##### Add wrap text script to wrap Headlines
